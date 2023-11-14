@@ -1,12 +1,18 @@
+#[derive(PartialEq,Debug)]
 pub enum Token {
-    ILLEGAL,
-    EOF,
 
     IDENTIFIER(String),
     INTEGER(usize),
 
     ASSIGN,
     PLUS,
+    MINUS,
+    BANG,
+    ASTERISK,
+    SLASH,
+
+    LT,
+    GT,
 
     COMMA,
     SEMICOLON,
@@ -15,6 +21,15 @@ pub enum Token {
     RPAREN,
     LBRACE,
     RBRACE,
+
     FUNCTION,
-    LET
+    LET,
+    TRUE,
+    FALSE,
+    IF,
+    ELSE,
+    RETURN,
+
+    EQ,
+    NOTEQ,
 }
