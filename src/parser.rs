@@ -2,15 +2,29 @@ use std::collections::VecDeque;
 
 use crate::{token::Token, ast::{Program, Statement, Expression}};
 
+#[allow(non_camel_case_types)]
+pub enum ParseFault {
+    ParseLet_NextNotIdent,
+    ParseLet_AssignNotExist
+}
 
+impl ParseFault {
+    pub fn msg(&self) -> String {
+        match self {
+            ParseFault::ParseLet_NextNotIdent => String::from("letの次が識別子ではありません"),
+            ParseFault::ParseLet_AssignNotExist => String::from("let文に代入式(=)がありません")
+        }
+    }
+}
 
 pub struct Parser {
-    tokens : VecDeque<Token>
+    tokens : VecDeque<Token>,
+    pub faults : Vec<ParseFault>,
 }
 
 impl Parser {
     pub fn new(tokens:VecDeque<Token>) -> Self {
-        Parser { tokens }
+        Parser { tokens ,faults: Vec::new() }
     }
 
     pub fn parse_program(&mut self) -> Program {
@@ -33,9 +47,11 @@ impl Parser {
 
     fn parse_let(&mut self) -> Option<Statement> {
         let Some(Token::IDENTIFIER(ident_str)) = self.tokens.pop_front() else {
+            self.faults.push(ParseFault::ParseLet_NextNotIdent);
             return None;
         };
         if self.tokens.pop_front() != Some(Token::ASSIGN) {
+            self.faults.push(ParseFault::ParseLet_AssignNotExist);
             return None;
         };
         // TODO

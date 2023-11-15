@@ -20,6 +20,15 @@ pub fn start(){
         let tokens = analyze_lexical(input);
         let mut parser = Parser::new(tokens);
         let program = parser.parse_program();
+        if parser.faults.len() > 0 {
+            print_parse_fault(&parser);
+        }
         println!("{}",program.token_literal());
+    }
+}
+
+fn print_parse_fault(parser:&Parser){
+    for f in &parser.faults {
+        println!("{}",f.msg());
     }
 }
