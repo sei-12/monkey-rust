@@ -1,5 +1,5 @@
 use std::io::{self, Write};
-use crate::lexer::analyze_lexical;
+use crate::{lexer::analyze_lexical, parser::Parser};
 
 pub fn start(){
 
@@ -18,8 +18,8 @@ pub fn start(){
         }
 
         let tokens = analyze_lexical(input);
-        println!("{:?}",tokens);
+        let mut parser = Parser::new(tokens);
+        let program = parser.parse_program();
+        println!("{}",program.token_literal());
     }
-
-
 }
