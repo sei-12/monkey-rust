@@ -6,6 +6,7 @@ pub enum Statement {
     Let { ident: Expression, value: Expression },
     Return { value: Expression },
     Expression { exp: Expression },
+    Block{ stmts: Vec<Statement> },
 }
 impl Statement {
     pub fn string(&self) -> String {
@@ -18,7 +19,14 @@ impl Statement {
             },
             Self::Expression { exp } => {
                 exp.string()
-            }
+            },
+            Self::Block { stmts } => {
+                let mut strings = Vec::new();
+                for stmt in stmts {
+                    strings.push(stmt.string());
+                };
+                strings.join("")
+            },
         }
     }
 }
@@ -30,7 +38,8 @@ pub enum Expression {
     Integer { value: usize },
     Boolean { value: bool },
     Prefix { ope: PrefixOpe, right: Box<Expression> },
-    Infix { left: Box<Expression>, ope:InfixOpe, right: Box<Expression> }
+    Infix { left: Box<Expression>, ope:InfixOpe, right: Box<Expression> },
+    If { condition: Box<Expression>, consequence: Box<Statement>, alternative: Option<Box<Statement>>},
 }
 
 impl Expression {
@@ -53,6 +62,12 @@ impl Expression {
             },
             Self::Boolean { value } => {
                 format!("{}",value)
+            },
+            Self::If { condition, consequence, alternative } => {
+                match alternative {
+                    Some(alt) => format!("if ({}) {{{}}} else {{{}}}",condition.string(),consequence.string(),alt.string()),
+                    None => format!("if ({}) {{{}}}",condition.string(),consequence.string())
+                }
             }
         }
     }

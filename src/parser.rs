@@ -137,6 +137,7 @@ impl Parser {
             Token::TRUE | Token::FALSE => Some(self.parse_bool(cur_token == Token::TRUE)),
             Token::BANG | Token::MINUS => self.parse_prefix_expression(cur_token),
             Token::LPAREN => self.parse_group_expression(),
+            Token::IF => self.parse_if_expression(),
             _ => {
                 self.faults.push(ParseFault::NoPrefixParseFn(cur_token));
                 None
@@ -163,6 +164,63 @@ impl Parser {
         };
 
         Some(left_exp)
+    }
+
+    fn parse_if_expression(&mut self) -> Option<Expression> {
+        if self.tokens.pop_front() != Some(Token::LPAREN) {
+            // 構文エラー
+            return None;
+        };
+        let Some(cur_token) = self.tokens.pop_front()else {
+            // 構文エラー
+            return None;
+        };
+        
+        let Some(condition) = self.parse_exp(Precedence::Lowest, cur_token) else {
+            return None;
+        };
+
+        if self.tokens.pop_front() != Some(Token::RPAREN) {
+            // 構文エラー
+            return None;
+        };
+
+        if self.tokens.pop_front() != Some(Token::LBRACE) {
+            // 構文エラー
+            return None;
+        };
+
+        let cons = self.parse_block_statement();
+        let mut alt = None;
+
+        if self.tokens.front() == Some(&Token::ELSE) {
+            self.tokens.pop_front();
+            if self.tokens.pop_front() != Some(Token::LBRACE) {
+                // 構文エラー
+                return None;
+            }
+            alt = Some(Box::new(self.parse_block_statement()));
+        };
+
+        Some(Expression::If { 
+            condition:Box::new(condition), 
+            consequence:Box::new(cons), 
+            alternative: alt 
+        })
+
+    }
+
+    fn parse_block_statement(&mut self) -> Statement {
+        let mut stmts = Vec::new();
+        let mut cur = self.tokens.pop_front();
+        while cur != Some(Token::RBRACE) && cur != None {
+            match self.parse_stmt(cur.expect("パニックになるわけない")) {
+                Some(stmt) => stmts.push(stmt),
+                None => {}
+            };
+            cur = self.tokens.pop_front();
+        }
+        Statement::Block { stmts }
     }
 
     fn parse_identifier(&self,ident:String) -> Expression {
@@ -463,6 +521,51 @@ mod test_parser {
         let mut parser = Parser::new(tokens);
         let program = parser.parse_program();
         assert_eq!(program.string(),out_str);
+    }
+
+    #[test]
+    fn if_expression(){
+        let input = String::from("\
+        if ( a == b ) { x }
+        if ( (a + b) > c ) { aaa }
+        if ( a == b ) { x } else { y }
+        if ( (a + b) > c ) { aaa } else { bbb }
+        ");
+
+        let tokens = analyze_lexical(input);
+        let mut parser = Parser::new(tokens);
+        let mut program = parser.parse_program();
+
+        if parser.faults.len() > 0 {
+            for f in &parser.faults {
+                println!("{}",f.msg());
+            }
+            panic!();
+        }
+        // Vecなので後ろから順にテストしていく
+        test_if_expression(program.stmts.pop(), "((a + b) > c)", "aaa", Some("bbb"));
+        test_if_expression(program.stmts.pop(), "(a == b)", "x", Some("y"));
+        test_if_expression(program.stmts.pop(), "((a + b) > c)", "aaa", None);
+        test_if_expression(program.stmts.pop(), "(a == b)", "x", None);
+        
+        assert!(program.stmts.pop().is_none());
+    }
+
+    fn test_if_expression(stmt:Option<Statement>,cond:&str,cons:&str,alt:Option<&str>){
+        let Some(Statement::Expression { exp }) = stmt else {
+            panic!("Statement::Expressionではない");
+        };
+
+        let Expression::If { condition, consequence, alternative } = exp else {
+            panic!("Expression::Ifではない");
+        };
+
+        assert_eq!(condition.string(),cond);
+        assert_eq!(consequence.string(),cons);
+
+        let Some(alt) = alt else { return; };
+        let s_alt = alternative.expect("alternative is none");
+        assert_eq!(alt,s_alt.string());
     }
 
     
