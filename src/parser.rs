@@ -200,12 +200,9 @@ impl Parser {
     fn parse_prefix_expression(&mut self,cur_token:Token) -> Result<Expression,ParseFault> {
         let next_tkn= self.get_next_token()?;
         let right= self.parse_exp(Precedence::Prefix, next_tkn)?;
-        let ope = match cur_token {
-            Token::BANG => PrefixOpe::Bang,
-            Token::MINUS => PrefixOpe::Minus,
-            _ => panic!("修正必須のバグを発見!!")
-        };
-
+        let ope = PrefixOpe::from_tkn(&cur_token).expect(
+            format!("修正必須のバグ: parse_prefixが前置演算子ではないところで呼ばれている cur_token={:?}",cur_token).as_str()
+        );
         return Ok(Expression::Prefix { ope, right: Box::new(right) });
     }
 

@@ -140,4 +140,12 @@ impl PrefixOpe {
             PrefixOpe::Minus => String::from("-")
         }
     }
+
+    pub fn from_tkn(tkn:&Token) -> Option<Self> {
+        match tkn {
+            Token::BANG => Some(Self::Bang),
+            Token::MINUS => Some(Self::Minus),
+            _ => None
+        }
+    }
 }
