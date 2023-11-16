@@ -5,12 +5,24 @@ use crate::{token::Token, ast::{Program, Statement, Expression, PrefixOpe, Infix
 #[allow(non_camel_case_types)]
 pub enum ParseFault {
     ParseLet_NextNotIdent,
-    ParseLet_AssignNotExist,
     NoPrefixParseFn(Token),
-    ParsePrefix_NextNotExist,
-    ParseInfix_NextNotExist,
-    ParseGroup_NextNotExist,
-    ParseGroup_RightParenNotExist,
+    ExpectPopFront { expect: Token, got: Option<Token> },
+    NextNotExist,
+}
+
+impl ParseFault {
+    pub fn msg(&self) -> String {
+        match self {
+            ParseFault::ParseLet_NextNotIdent => String::from("letの次が識別子ではありません"),
+            ParseFault::NoPrefixParseFn(tkn) => format!("{:?}に対応する関数は見当たりません",tkn),
+            ParseFault::ExpectPopFront { expect, got } => {
+                format!("期待されたのは\"{:?}\" ですが実際は\"{:?}\"でした",expect,got)
+            },
+            ParseFault::NextNotExist => {
+                format!("トークンが足りません")
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -34,19 +46,7 @@ impl Precedence {
         }
     }
 }
-impl ParseFault {
-    pub fn msg(&self) -> String {
-        match self {
-            ParseFault::ParseLet_NextNotIdent => String::from("letの次が識別子ではありません"),
-            ParseFault::ParseLet_AssignNotExist => String::from("let文に代入式(=)がありません"),
-            ParseFault::NoPrefixParseFn(tkn) => format!("no prefix parse function for {:?} found",tkn),
-            ParseFault::ParsePrefix_NextNotExist => String::from("前置演算子の次にトークンがありません"),
-            ParseFault::ParseInfix_NextNotExist => String::from("中地演算子の次にトークンがありません"),
-            ParseFault::ParseGroup_NextNotExist => String::from("(の次にトークンがありません"),
-            ParseFault::ParseGroup_RightParenNotExist => String::from("かっこ\"(\"が閉じられていません"),
-        }
-    }
-}
+
 
 pub struct Parser {
     tokens : VecDeque<Token>,
@@ -60,16 +60,19 @@ impl Parser {
 
     pub fn parse_program(&mut self) -> Program {
         let mut program = Program::new();
+
         loop {
             let Some(cur_token) = self.tokens.pop_front() else { break; };
-            if let Some(stmt) = self.parse_stmt(cur_token) {
-                program.stmts.push(stmt);
+            match self.parse_stmt(cur_token) {
+                Ok(stmt) => program.stmts.push(stmt),
+                Err(fault) => self.faults.push(fault),
             }
         }
+
         program
     }
 
-    fn parse_stmt(&mut self,cur_token:Token) -> Option<Statement> {
+    fn parse_stmt(&mut self,cur_token:Token) -> Result<Statement,ParseFault> {
         match cur_token {
             Token::LET => self.parse_let(),
             Token::RETURN => self.parse_return(),
@@ -77,74 +80,53 @@ impl Parser {
         }
     }
 
-    fn parse_return(&mut self) -> Option<Statement> {
+    fn parse_return(&mut self) -> Result<Statement,ParseFault> {
         // TODO
         while self.tokens.pop_front() != Some(Token::SEMICOLON) {};
-        Some(Statement::Return { value: Expression::Decoy })
+        Ok(Statement::Return { value: Expression::Decoy })
     }
 
-    fn parse_let(&mut self) -> Option<Statement> {
-        let Some(Token::IDENTIFIER(ident_str)) = self.tokens.pop_front() else {
-            self.faults.push(ParseFault::ParseLet_NextNotIdent);
-            return None;
+    fn parse_let(&mut self) -> Result<Statement,ParseFault> {
+
+        let Token::IDENTIFIER(ident_str) = self.get_next_token()? else {
+            return Err(ParseFault::ParseLet_NextNotIdent);
         };
-        if self.tokens.pop_front() != Some(Token::ASSIGN) {
-            self.faults.push(ParseFault::ParseLet_AssignNotExist);
-            return None;
-        };
+
+        self.expect_pop_front(Token::ASSIGN)?;
         // TODO
         while self.tokens.pop_front() != Some(Token::SEMICOLON) {};
         
         let ident = Expression::Ident{value:ident_str};
         let value = Expression::Decoy;
-        Some(Statement::Let { ident, value })
+        Ok(Statement::Let { ident, value })
     }
 
-    fn parse_expression_statement(&mut self,cur_token:Token) -> Option<Statement> {
-        let Some(exp) = self.parse_exp(Precedence::Lowest,cur_token) else {
-            return None;
-        };
+    fn parse_expression_statement(&mut self,cur_token:Token) -> Result<Statement,ParseFault> {
+        let exp = self.parse_exp(Precedence::Lowest,cur_token)?;
         if self.tokens.front() == Some(&Token::SEMICOLON) {
             self.tokens.pop_front();
         };
-        return Some(Statement::Expression { exp });
-    }
 
-    fn parse_bool(&self,value:bool) -> Expression {
-        Expression::Boolean { value }
+        return Ok(Statement::Expression { exp });
     }
     
-    fn parse_group_expression(&mut self) -> Option<Expression> {
-        let Some(cur) = self.tokens.pop_front() else {
-            self.faults.push(ParseFault::ParseGroup_NextNotExist);
-            return None;
-        };
-
-        let exp = self.parse_exp(Precedence::Lowest, cur);
-
-        if self.tokens.pop_front() != Some(Token::RPAREN) {
-            self.faults.push(ParseFault::ParseGroup_RightParenNotExist);
-            return None;
-        };
-
-        exp
+    fn parse_group_expression(&mut self) -> Result<Expression,ParseFault> {
+        let cur = self.get_next_token()?;
+        let exp = self.parse_exp(Precedence::Lowest, cur)?;
+        self.expect_pop_front(Token::RPAREN)?;
+        Ok(exp)
     }
 
-    fn parse_exp(&mut self,prec:Precedence,cur_token:Token) -> Option<Expression> {
-        let left_exp = match cur_token {
-            Token::IDENTIFIER(ident) => Some(self.parse_identifier(ident)),
-            Token::INTEGER(value) => Some(self.parge_integer(value)),
-            Token::TRUE | Token::FALSE => Some(self.parse_bool(cur_token == Token::TRUE)),
-            Token::BANG | Token::MINUS => self.parse_prefix_expression(cur_token),
-            Token::LPAREN => self.parse_group_expression(),
-            Token::IF => self.parse_if_expression(),
-            _ => {
-                self.faults.push(ParseFault::NoPrefixParseFn(cur_token));
-                None
-            }
-        };
-        
-        let Some(mut left_exp) = left_exp else { return None; };
+    fn parse_exp(&mut self,prec:Precedence,cur_token:Token) -> Result<Expression,ParseFault> {
+        let mut left_exp = match cur_token {
+            Token::IDENTIFIER(value) => Ok(Expression::Ident { value }),
+            Token::INTEGER(value)     => Ok(Expression::Integer { value }),
+            Token::TRUE | Token::FALSE       => Ok(Expression::Boolean { value: cur_token == Token::TRUE }),
+            Token::BANG | Token::MINUS       => self.parse_prefix_expression(cur_token),
+            Token::LPAREN                    => self.parse_group_expression(),
+            Token::IF                        => self.parse_if_expression(),
+            _                                => Err(ParseFault::NoPrefixParseFn(cur_token))
+        }?;
 
         loop {
             if self.tokens.front() == Some(&Token::SEMICOLON) { break; };
@@ -155,59 +137,51 @@ impl Parser {
             // 次のトークンが中置演算子でかついまの演算子より優先度が高い
 
             self.tokens.pop_front();
-            
-            let Some(new_left) = self.parse_infix_expression(in_op, left_exp) else {
-                return None;
-            };
-            
+            let new_left = self.parse_infix_expression(in_op, left_exp)?;
             left_exp = new_left;
         };
 
-        Some(left_exp)
+        Ok(left_exp)
     }
 
-    fn parse_if_expression(&mut self) -> Option<Expression> {
-        if self.tokens.pop_front() != Some(Token::LPAREN) {
-            // 構文エラー
-            return None;
-        };
-        let Some(cur_token) = self.tokens.pop_front()else {
-            // 構文エラー
-            return None;
-        };
-        
-        let Some(condition) = self.parse_exp(Precedence::Lowest, cur_token) else {
-            return None;
-        };
+    fn expect_pop_front(&mut self,token:Token) -> Result<(),ParseFault> {
+        let front = self.tokens.pop_front();
+        if let Some(front) = front {
+            if front == token {
+                Ok(())
+            }else{
+                Err(ParseFault::ExpectPopFront { expect: token, got: Some(front) })
+            }
+        }else{
+            Err(ParseFault::ExpectPopFront { expect: token, got: None })
+        }
+    }
 
-        if self.tokens.pop_front() != Some(Token::RPAREN) {
-            // 構文エラー
-            return None;
-        };
+    fn get_next_token(&mut self) -> Result<Token,ParseFault> {
+        match self.tokens.pop_front() {
+            Some(token) => Ok(token),
+            None => Err(ParseFault::NextNotExist)
+        }
+    }
 
-        if self.tokens.pop_front() != Some(Token::LBRACE) {
-            // 構文エラー
-            return None;
-        };
-
+    fn parse_if_expression(&mut self) -> Result<Expression,ParseFault> {
+        self.expect_pop_front(Token::LPAREN)?;
+        let cur_token = self.get_next_token()?;
+        let condition= self.parse_exp(Precedence::Lowest, cur_token)?;
+        self.expect_pop_front(Token::RPAREN)?;
+        self.expect_pop_front(Token::LBRACE)?;
         let cons = self.parse_block_statement();
         let mut alt = None;
-
         if self.tokens.front() == Some(&Token::ELSE) {
             self.tokens.pop_front();
-            if self.tokens.pop_front() != Some(Token::LBRACE) {
-                // 構文エラー
-                return None;
-            }
+            self.expect_pop_front(Token::LBRACE)?;
             alt = Some(Box::new(self.parse_block_statement()));
         };
-
-        Some(Expression::If { 
+        Ok(Expression::If { 
             condition:Box::new(condition), 
             consequence:Box::new(cons), 
             alternative: alt 
         })
-
     }
 
     fn parse_block_statement(&mut self) -> Statement {
@@ -215,51 +189,30 @@ impl Parser {
         let mut cur = self.tokens.pop_front();
         while cur != Some(Token::RBRACE) && cur != None {
             match self.parse_stmt(cur.expect("パニックになるわけない")) {
-                Some(stmt) => stmts.push(stmt),
-                None => {}
+                Ok(stmt) => stmts.push(stmt),
+                Err(falult) => self.faults.push(falult)
             };
             cur = self.tokens.pop_front();
         }
         Statement::Block { stmts }
     }
 
-    fn parse_identifier(&self,ident:String) -> Expression {
-        Expression::Ident { value: ident }
-    }
-    fn parge_integer(&self,value:usize) -> Expression {
-        Expression::Integer { value }
-    }
-
-    fn parse_prefix_expression(&mut self,cur_token:Token) -> Option<Expression> {
-        let Some(next_tkn) = self.tokens.pop_front() else {
-            self.faults.push(ParseFault::ParsePrefix_NextNotExist);
-            return None;
-        };
-
-        let Some(right) = self.parse_exp(Precedence::Prefix, next_tkn)else{
-            return None;
-        };
-
+    fn parse_prefix_expression(&mut self,cur_token:Token) -> Result<Expression,ParseFault> {
+        let next_tkn= self.get_next_token()?;
+        let right= self.parse_exp(Precedence::Prefix, next_tkn)?;
         let ope = match cur_token {
             Token::BANG => PrefixOpe::Bang,
             Token::MINUS => PrefixOpe::Minus,
             _ => panic!("修正必須のバグを発見!!")
         };
 
-        return Some(Expression::Prefix { ope, right: Box::new(right) });
+        return Ok(Expression::Prefix { ope, right: Box::new(right) });
     }
 
-    fn parse_infix_expression(&mut self,ope:InfixOpe,left:Expression) -> Option<Expression> {
-        let Some(next_tkn) = self.tokens.pop_front() else {
-            self.faults.push(ParseFault::ParseInfix_NextNotExist);
-            return None;
-        };
-        
-        let Some(right) = self.parse_exp(Precedence::from_op(&ope), next_tkn)else{
-            return None;
-        };
-
-        Some(Expression::Infix { 
+    fn parse_infix_expression(&mut self,ope:InfixOpe,left:Expression) -> Result<Expression,ParseFault> {
+        let next_tkn = self.get_next_token()?;
+        let right= self.parse_exp(Precedence::from_op(&ope), next_tkn)?;
+        Ok(Expression::Infix { 
             left: Box::new(left), 
             ope, 
             right: Box::new(right)
