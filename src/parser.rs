@@ -73,24 +73,34 @@ mod test_parser {
 
     #[test]
     fn let_statement(){
-        test_let_statement("let foo = 10;", "foo", "decoy");
-        test_let_statement("let xxx = 10;", "xxx", "decoy");
-        test_let_statement("let x = x;", "x", "decoy");
-        
-    }
+        let input = String::from("\
+        let a = 10;\
+        let b = c;\
+        let aaa = 11;\
+        ");
 
-    fn test_let_statement(input:&str,ident:&str,exp_literal:&str) {
-        let tokens = analyze_lexical(String::from(input));
+        let tokens = analyze_lexical(input);
         let mut parser = Parser::new(tokens);
         let mut program = parser.parse_program();
-        let Some(Statement::Let { ident: p_ident, value }) = program.stmts.pop() else {
-            panic!("Statement::Letではない!! input:{}",input)
+        assert_eq!(parser.faults.len(),0);
+        test_let_statement(program.stmts.pop(), "aaa", "decoy");
+        test_let_statement(program.stmts.pop(), "b", "decoy");
+        test_let_statement(program.stmts.pop(), "a", "decoy");
+        assert!(program.stmts.pop().is_none());
+    }
+
+    fn test_let_statement(stmt:Option<Statement>,ident:&str,exp_literal:&str) {
+        let Some(Statement::Let { ident: p_ident, value }) = stmt else {
+            panic!("Statement::Letではない!!")
         };
         if let Expression::Ident { value } = p_ident {
-            assert_eq!(value,ident,"input:\"{}\"",input);
+            assert_eq!(value,ident);
         }else{
-            panic!("identがExpression::Identではない!! input:\"{}\"",input)
+            panic!("identがExpression::Identではない!!")
         }
+        assert_eq!(value.token_literal(),exp_literal);
+    }
+
         assert_eq!(value.token_literal(),exp_literal,"input:\"{}\"",input);
     }
 }
