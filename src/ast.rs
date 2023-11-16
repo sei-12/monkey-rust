@@ -2,7 +2,8 @@
 #[derive(PartialEq,Debug)]
 pub enum Statement {
     Let { ident: Expression, value: Expression },
-    Return { value: Expression }
+    Return { value: Expression },
+    Expression { exp: Expression },
 }
 impl Statement {
     pub fn string(&self) -> String {
@@ -12,6 +13,9 @@ impl Statement {
             },
             Self::Return { value } => {
                 format!("return {};",value.string())
+            },
+            Self::Expression { exp } => {
+                exp.string()
             }
         }
     }

@@ -8,6 +8,17 @@ pub enum ParseFault {
     ParseLet_AssignNotExist
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Precedence {
+    Lowest,
+    Equals,
+    LessGreater,
+    Sum,
+    Product,
+    Prefix,
+    Call,
+}
+
 impl ParseFault {
     pub fn msg(&self) -> String {
         match self {
@@ -42,7 +53,7 @@ impl Parser {
         match cur_token {
             Token::LET => self.parse_let(),
             Token::RETURN => self.parse_return(),
-            _ => None
+            _ => self.parse_expression_statement(cur_token)
         }
     }
 
@@ -67,6 +78,27 @@ impl Parser {
         let ident = Expression::Ident{value:ident_str};
         let value = Expression::Decoy;
         Some(Statement::Let { ident, value })
+    }
+
+    fn parse_expression_statement(&mut self,cur_token:Token) -> Option<Statement> {
+        let Some(exp) = self.parse_exp(Precedence::Lowest,cur_token) else {
+            return None;
+        };
+        if self.tokens.front() == Some(&Token::SEMICOLON) {
+            self.tokens.pop_front();
+        };
+        return Some(Statement::Expression { exp });
+    }
+    
+    fn parse_exp(&mut self,_prec:Precedence,cur_token:Token) -> Option<Expression> {
+        match cur_token {
+            Token::IDENTIFIER(ident) => Some(self.parse_identifier(ident)),
+            _ => None
+        }
+    }
+
+    fn parse_identifier(&self,ident:String) -> Expression {
+        Expression::Ident { value: ident }
     }
 }
 
@@ -132,5 +164,30 @@ mod test_parser {
             panic!("Statement::Returnではない");
         };
         assert_eq!(value.string(),val_literal);
+    }
+
+    #[test]
+    fn identifier_exp(){
+        let input = String::from("foo;");
+
+        let tokens = analyze_lexical(input);
+        let mut parser = Parser::new(tokens);
+        let mut program = parser.parse_program();
+        assert_eq!(parser.faults.len(),0);
+        // Vecなので後ろから順にテストしていく
+        test_identifier_expression(program.stmts.pop(), "foo");
+        assert!(program.stmts.pop().is_none());
+    }
+
+    fn test_identifier_expression(stmt:Option<Statement>,ident:&str){
+        let Some(Statement::Expression { exp }) = stmt else {
+            panic!("Statement::Expressionではない");
+        };
+
+        let Expression::Ident { value } = exp else {
+            panic!("Expression::Identではない")
+        };
+
+        assert_eq!(value,ident);
     }
 }
