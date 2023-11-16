@@ -93,12 +93,16 @@ impl Parser {
     fn parse_exp(&mut self,_prec:Precedence,cur_token:Token) -> Option<Expression> {
         match cur_token {
             Token::IDENTIFIER(ident) => Some(self.parse_identifier(ident)),
+            Token::INTEGER(value) => Some(self.parge_integer(value)),
             _ => None
         }
     }
 
     fn parse_identifier(&self,ident:String) -> Expression {
         Expression::Ident { value: ident }
+    }
+    fn parge_integer(&self,value:usize) -> Expression {
+        Expression::Integer { value }
     }
 }
 
@@ -190,4 +194,40 @@ mod test_parser {
 
         assert_eq!(value,ident);
     }
+
+    #[test]
+    fn integer_exp(){
+        let input = String::from("\
+        100;
+        200;
+        1;
+        2
+        4
+        ");
+
+        let tokens = analyze_lexical(input);
+        let mut parser = Parser::new(tokens);
+        let mut program = parser.parse_program();
+        assert_eq!(parser.faults.len(),0);
+        // Vecなので後ろから順にテストしていく
+        test_integer_expression(program.stmts.pop(), 4);
+        test_integer_expression(program.stmts.pop(), 2);
+        test_integer_expression(program.stmts.pop(), 1);
+        test_integer_expression(program.stmts.pop(), 200);
+        test_integer_expression(program.stmts.pop(), 100);
+        assert!(program.stmts.pop().is_none());
+    }
+
+    fn test_integer_expression(stmt:Option<Statement>,val:usize){
+        let Some(Statement::Expression { exp }) = stmt else {
+            panic!("Statement::Expressionではない");
+        };
+
+        let Expression::Integer { value } = exp else {
+            panic!("Expression::Integerではない");
+        };
+
+        assert_eq!(value,val);
+    }
+    
 }

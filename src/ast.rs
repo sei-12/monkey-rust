@@ -24,7 +24,8 @@ impl Statement {
 #[derive(PartialEq,Debug)]
 pub enum Expression {
     Decoy, // いまだけ
-    Ident { value: String }
+    Ident { value: String },
+    Integer { value: usize },
 }
 impl Expression {
     pub fn string(&self) -> String {
@@ -34,6 +35,9 @@ impl Expression {
             },
             Self::Decoy => {
                 String::from("decoy")
+            },
+            Self::Integer { value } => {
+                value.to_string()
             }
         }
     }
