@@ -5,13 +5,13 @@ pub enum Statement {
     Return { value: Expression }
 }
 impl Statement {
-    pub fn token_literal(&self) -> String {
+    pub fn string(&self) -> String {
         match self {
             Self::Let { ident, value } => {
-                format!("let {} = {};",ident.token_literal(),value.token_literal())
+                format!("let {} = {};",ident.string(),value.string())
             },
             Self::Return { value } => {
-                format!("return {};",value.token_literal())
+                format!("return {};",value.string())
             }
         }
     }
@@ -23,7 +23,7 @@ pub enum Expression {
     Ident { value: String }
 }
 impl Expression {
-    pub fn token_literal(&self) -> String {
+    pub fn string(&self) -> String {
         match self {
             Self::Ident { value } => {
                 value.clone()
@@ -39,10 +39,10 @@ pub struct Program {
     pub stmts : Vec<Statement>
 }
 impl Program {
-    pub fn token_literal(&self) -> String {
+    pub fn string(&self) -> String {
         let mut ret = String::new();
         for stmt in &self.stmts {
-            ret.push_str(&stmt.token_literal());
+            ret.push_str(&stmt.string());
         };
         ret
     }

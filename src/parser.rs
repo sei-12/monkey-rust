@@ -105,7 +105,7 @@ mod test_parser {
         }else{
             panic!("identがExpression::Identではない!!")
         }
-        assert_eq!(value.token_literal(),exp_literal);
+        assert_eq!(value.string(),exp_literal);
     }
 
     #[test]
@@ -131,6 +131,6 @@ mod test_parser {
         let Some(Statement::Return { value }) = stmt else {
             panic!("Statement::Returnではない");
         };
-        assert_eq!(value.token_literal(),val_literal);
+        assert_eq!(value.string(),val_literal);
     }
 }

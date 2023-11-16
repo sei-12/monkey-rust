@@ -23,7 +23,7 @@ pub fn start(){
         if parser.faults.len() > 0 {
             print_parse_fault(&parser);
         }
-        println!("{}",program.token_literal());
+        println!("{}",program.string());
     }
 }
 
