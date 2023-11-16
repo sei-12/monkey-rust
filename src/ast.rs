@@ -65,8 +65,8 @@ impl Expression {
             },
             Self::If { condition, consequence, alternative } => {
                 match alternative {
-                    Some(alt) => format!("if ({}) {{{}}} else {{{}}}",condition.string(),consequence.string(),alt.string()),
-                    None => format!("if ({}) {{{}}}",condition.string(),consequence.string())
+                    Some(alt) => format!("if ( {} ) {{ {} }} else {{ {} }}",condition.string(),consequence.string(),alt.string()),
+                    None => format!("if ( {} ) {{ {} }}",condition.string(),consequence.string())
                 }
             }
         }
