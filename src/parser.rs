@@ -105,11 +105,16 @@ impl Parser {
         };
         return Some(Statement::Expression { exp });
     }
+
+    fn parse_bool(&self,value:bool) -> Expression {
+        Expression::Boolean { value }
+    }
     
     fn parse_exp(&mut self,prec:Precedence,cur_token:Token) -> Option<Expression> {
         let left_exp = match cur_token {
             Token::IDENTIFIER(ident) => Some(self.parse_identifier(ident)),
             Token::INTEGER(value) => Some(self.parge_integer(value)),
+            Token::TRUE | Token::FALSE => Some(self.parse_bool(cur_token == Token::TRUE)),
             Token::BANG | Token::MINUS => self.parse_prefix_expression(cur_token),
             _ => {
                 self.faults.push(ParseFault::NoPrefixParseFn(cur_token));
@@ -421,6 +426,13 @@ mod test_parser {
         test_program("d > a != b < c", "((d > a) != (b < c))");
         test_program("d > a ; b < c", "(d > a)(b < c)");
         test_program("d > -a != b < c", "((d > (-a)) != (b < c))");
+    }
+
+    #[test]
+    fn bool(){
+        test_program("true", "true");
+        test_program("false", "false");
+        test_program("3 > 5 == false", "((3 > 5) == false)");
     }
 
     fn test_program(input:&str,out_str:&str){

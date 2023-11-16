@@ -28,6 +28,7 @@ pub enum Expression {
     Decoy, // いまだけ
     Ident { value: String },
     Integer { value: usize },
+    Boolean { value: bool },
     Prefix { ope: PrefixOpe, right: Box<Expression> },
     Infix { left: Box<Expression>, ope:InfixOpe, right: Box<Expression> }
 }
@@ -49,6 +50,9 @@ impl Expression {
             },
             Self::Infix { left, ope, right } => {
                 format!("({} {} {})",left.string(),ope.string(),right.string())
+            },
+            Self::Boolean { value } => {
+                format!("{}",value)
             }
         }
     }
