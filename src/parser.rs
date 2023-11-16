@@ -8,6 +8,7 @@ pub enum ParseFault {
     NoPrefixParseFn(Token),
     ExpectPopFront { expect: Token, got: Option<Token> },
     NextNotExist,
+    Params_ExpectIdentifier { got: Token},
 }
 
 impl ParseFault {
@@ -20,6 +21,9 @@ impl ParseFault {
             },
             ParseFault::NextNotExist => {
                 format!("トークンが足りません")
+            },
+            ParseFault::Params_ExpectIdentifier { got } => {
+                format!("期待されたのは識別子ですが、実際は{:?}でした",got)
             }
         }
     }
@@ -125,6 +129,7 @@ impl Parser {
             Token::BANG | Token::MINUS       => self.parse_prefix_expression(cur_token),
             Token::LPAREN                    => self.parse_group_expression(),
             Token::IF                        => self.parse_if_expression(),
+            Token::FUNCTION                  => self.parse_function_literal(),
             _                                => Err(ParseFault::NoPrefixParseFn(cur_token))
         }?;
 
@@ -142,6 +147,35 @@ impl Parser {
         };
 
         Ok(left_exp)
+    }
+
+    fn parse_function_literal(&mut self) -> Result<Expression,ParseFault> {
+        self.expect_pop_front(Token::LPAREN)?;
+
+        let params = self.parse_function_params()?;
+
+        self.expect_pop_front(Token::LBRACE)?;
+
+        let body = self.parse_block_statement();
+
+        Ok(Expression::Function { params, body: Box::new(body) })
+    }
+
+    fn parse_function_params(&mut self) -> Result<Vec<Expression>,ParseFault> {
+        let mut params : Vec<Expression> = Vec::new();
+
+        loop {
+            let cur = self.get_next_token()?;
+            if cur == Token::RPAREN { break; };
+            if cur == Token::COMMA { continue; };
+            let Token::IDENTIFIER(ident) = cur else {
+                return Err(ParseFault::Params_ExpectIdentifier{ got: cur });
+            };
+            params.push(Expression::Ident { value: ident });
+        }
+
+
+        Ok(params)
     }
 
     fn expect_pop_front(&mut self,token:Token) -> Result<(),ParseFault> {
@@ -493,10 +527,10 @@ mod test_parser {
             panic!();
         }
         // Vecなので後ろから順にテストしていく
-        test_if_expression(program.stmts.pop(), "((a + b) > c)", "aaa", Some("bbb"));
-        test_if_expression(program.stmts.pop(), "(a == b)", "x", Some("y"));
-        test_if_expression(program.stmts.pop(), "((a + b) > c)", "aaa", None);
-        test_if_expression(program.stmts.pop(), "(a == b)", "x", None);
+        test_if_expression(program.stmts.pop(), "((a + b) > c)", "{ aaa }", Some("{ bbb }"));
+        test_if_expression(program.stmts.pop(), "(a == b)", "{ x }", Some("{ y }"));
+        test_if_expression(program.stmts.pop(), "((a + b) > c)", "{ aaa }", None);
+        test_if_expression(program.stmts.pop(), "(a == b)", "{ x }", None);
         
         assert!(program.stmts.pop().is_none());
     }
@@ -518,5 +552,53 @@ mod test_parser {
         assert_eq!(alt,s_alt.string());
     }
 
+    #[test]
+    fn function_expression(){
+        let input = String::from("\
+        fn ( x , y ) { y };
+        fn ( x ) { return y; };
+        fn ( x,y,z ) { 10 };
+        fn ( x,y,z ) { x + y * z }
+        fn ( x,y,z ){
+            let a = x + y * z;
+            return a + b;
+        }
+        ");
+
+        let tokens = analyze_lexical(input);
+        let mut parser = Parser::new(tokens);
+        let mut program = parser.parse_program();
+
+        if parser.faults.len() > 0 {
+            for f in &parser.faults {
+                println!("{}",f.msg());
+            }
+            panic!();
+        }
+        // Vecなので後ろから順にテストしていく
+        test_fn_expression(program.stmts.pop(), vec!["x","y","z"], "{ let a = decoy;return decoy; }");
+        test_fn_expression(program.stmts.pop(), vec!["x","y","z"], "{ (x + (y * z)) }");
+        test_fn_expression(program.stmts.pop(), vec!["x","y","z"], "{ 10 }");
+        test_fn_expression(program.stmts.pop(), vec!["x"], "{ return decoy; }");
+        test_fn_expression(program.stmts.pop(), vec!["x","y"], "{ y }");
+        
+        assert!(program.stmts.pop().is_none());
+    }
+
+    fn test_fn_expression(stmt:Option<Statement>,expect_params:Vec<&str>,block:&str){
+        let Some(Statement::Expression { exp }) = stmt else {
+            panic!("Statement::Expressionではない");
+        };
+
+        let Expression::Function { params, body } = exp else {
+            panic!("Expression::Functionではない");
+        };
+
+        assert_eq!(body.string(),block);
+
+        for ( got, expect ) in params.iter().zip(expect_params) {
+            assert_eq!(got.string(),expect);
+        }
+    }
     
 }

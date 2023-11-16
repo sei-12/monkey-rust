@@ -25,7 +25,7 @@ impl Statement {
                 for stmt in stmts {
                     strings.push(stmt.string());
                 };
-                strings.join("")
+                format!("{{ {} }}",strings.join(""))
             },
         }
     }
@@ -40,6 +40,7 @@ pub enum Expression {
     Prefix { ope: PrefixOpe, right: Box<Expression> },
     Infix { left: Box<Expression>, ope:InfixOpe, right: Box<Expression> },
     If { condition: Box<Expression>, consequence: Box<Statement>, alternative: Option<Box<Statement>>},
+    Function { params: Vec<Expression>, body: Box<Statement> },
 }
 
 impl Expression {
@@ -65,9 +66,13 @@ impl Expression {
             },
             Self::If { condition, consequence, alternative } => {
                 match alternative {
-                    Some(alt) => format!("if ( {} ) {{ {} }} else {{ {} }}",condition.string(),consequence.string(),alt.string()),
-                    None => format!("if ( {} ) {{ {} }}",condition.string(),consequence.string())
+                    Some(alt) => format!("if ( {} ) {} else {}",condition.string(),consequence.string(),alt.string()),
+                    None => format!("if ( {} ) {}",condition.string(),consequence.string())
                 }
+            },
+            Self::Function { params, body } => {
+                let params_str : Vec<String> = params.iter().map(|x| x.string()).collect();
+                format!("fn ( {} ) {}",params_str.join(","),body.string())
             }
         }
     }
