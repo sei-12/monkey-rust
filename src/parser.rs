@@ -1,11 +1,13 @@
 use std::collections::VecDeque;
 
-use crate::{token::Token, ast::{Program, Statement, Expression}};
+use crate::{token::Token, ast::{Program, Statement, Expression, PrefixOpe}};
 
 #[allow(non_camel_case_types)]
 pub enum ParseFault {
     ParseLet_NextNotIdent,
-    ParseLet_AssignNotExist
+    ParseLet_AssignNotExist,
+    NoPrefixParseFn(Token),
+    ParsePrefix_NextNotExist,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -23,7 +25,9 @@ impl ParseFault {
     pub fn msg(&self) -> String {
         match self {
             ParseFault::ParseLet_NextNotIdent => String::from("letの次が識別子ではありません"),
-            ParseFault::ParseLet_AssignNotExist => String::from("let文に代入式(=)がありません")
+            ParseFault::ParseLet_AssignNotExist => String::from("let文に代入式(=)がありません"),
+            ParseFault::NoPrefixParseFn(tkn) => format!("no prefix parse function for {:?} found",tkn),
+            ParseFault::ParsePrefix_NextNotExist => String::from("前置演算子の次にトークンがありません"),
         }
     }
 }
@@ -94,7 +98,11 @@ impl Parser {
         match cur_token {
             Token::IDENTIFIER(ident) => Some(self.parse_identifier(ident)),
             Token::INTEGER(value) => Some(self.parge_integer(value)),
-            _ => None
+            Token::BANG | Token::MINUS => self.parse_prefix_expression(cur_token),
+            _ => {
+                self.faults.push(ParseFault::NoPrefixParseFn(cur_token));
+                None
+            }
         }
     }
 
@@ -104,13 +112,32 @@ impl Parser {
     fn parge_integer(&self,value:usize) -> Expression {
         Expression::Integer { value }
     }
+
+    fn parse_prefix_expression(&mut self,cur_token:Token) -> Option<Expression> {
+        let Some(next_tkn) = self.tokens.pop_front() else {
+            self.faults.push(ParseFault::ParsePrefix_NextNotExist);
+            return None;
+        };
+
+        let Some(right) = self.parse_exp(Precedence::Prefix, next_tkn)else{
+            return None;
+        };
+
+        let ope = match cur_token {
+            Token::BANG => PrefixOpe::Bang,
+            Token::MINUS => PrefixOpe::Minus,
+            _ => panic!("修正必須のバグを発見!!")
+        };
+
+        return Some(Expression::Prefix { ope, right: Box::new(right) });
+    }
 }
 
 
 #[cfg(test)]
 mod test_parser {
 
-    use crate::{lexer::analyze_lexical, ast::{Statement, Expression}};
+    use crate::{lexer::analyze_lexical, ast::{Statement, Expression, PrefixOpe}};
 
     use super::Parser;
 
@@ -229,5 +256,56 @@ mod test_parser {
 
         assert_eq!(value,val);
     }
+
+    #[test]
+    fn prefix_expressions(){
+        let input = String::from("\
+        -1;
+        !1;
+        -xx;
+        !xx;
+        -1
+        !1
+        -xx
+        !xx
+        !!x
+        ");
+
+        let tokens = analyze_lexical(input);
+        let mut parser = Parser::new(tokens);
+        let mut program = parser.parse_program();
+
+        if parser.faults.len() > 0 {
+            for f in &parser.faults {
+                println!("{}",f.msg());
+            }
+            panic!();
+        }
+        // Vecなので後ろから順にテストしていく
+        test_prefix_expression(program.stmts.pop(), PrefixOpe::Bang, "!x");
+        test_prefix_expression(program.stmts.pop(), PrefixOpe::Bang, "xx");
+        test_prefix_expression(program.stmts.pop(), PrefixOpe::Minus, "xx");
+        test_prefix_expression(program.stmts.pop(), PrefixOpe::Bang, "1");
+        test_prefix_expression(program.stmts.pop(), PrefixOpe::Minus, "1");
+        test_prefix_expression(program.stmts.pop(), PrefixOpe::Bang, "xx");
+        test_prefix_expression(program.stmts.pop(), PrefixOpe::Minus, "xx");
+        test_prefix_expression(program.stmts.pop(), PrefixOpe::Bang, "1");
+        test_prefix_expression(program.stmts.pop(), PrefixOpe::Minus, "1");
+        assert!(program.stmts.pop().is_none());
+    }
+
+    fn test_prefix_expression(stmt:Option<Statement>,expect_ope:PrefixOpe,right_str:&str) {
+        let Some(Statement::Expression { exp }) = stmt else {
+            panic!("Statement::Expressionではない");
+        };
+
+        let Expression::Prefix { ope, right } = exp else {
+            panic!("Expression::Prefixではない");
+        };
+
+        assert_eq!(ope,expect_ope);
+        assert_eq!(right.string(),right_str);
+    }
+
     
 }

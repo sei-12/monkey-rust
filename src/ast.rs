@@ -26,6 +26,7 @@ pub enum Expression {
     Decoy, // いまだけ
     Ident { value: String },
     Integer { value: usize },
+    Prefix { ope: PrefixOpe, right: Box<Expression> }
 }
 impl Expression {
     pub fn string(&self) -> String {
@@ -38,6 +39,9 @@ impl Expression {
             },
             Self::Integer { value } => {
                 value.to_string()
+            },
+            Self::Prefix { ope, right } => {
+                format!("{}{}",ope.string(),right.string())
             }
         }
     }
@@ -56,5 +60,19 @@ impl Program {
     }
     pub fn new() -> Self {
         Program { stmts: Vec::new() }
+    }
+}
+
+#[derive(PartialEq,Debug)]
+pub enum PrefixOpe {
+    Bang,
+    Minus
+}
+impl PrefixOpe {
+    pub fn string(&self) -> String {
+        match self {
+            PrefixOpe::Bang => String::from("!"),
+            PrefixOpe::Minus => String::from("-")
+        }
     }
 }
