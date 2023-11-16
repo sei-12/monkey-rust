@@ -1,3 +1,5 @@
+use crate::token::Token;
+
 
 #[derive(PartialEq,Debug)]
 pub enum Statement {
@@ -26,8 +28,10 @@ pub enum Expression {
     Decoy, // いまだけ
     Ident { value: String },
     Integer { value: usize },
-    Prefix { ope: PrefixOpe, right: Box<Expression> }
+    Prefix { ope: PrefixOpe, right: Box<Expression> },
+    Infix { left: Box<Expression>, ope:InfixOpe, right: Box<Expression> }
 }
+
 impl Expression {
     pub fn string(&self) -> String {
         match self {
@@ -42,6 +46,9 @@ impl Expression {
             },
             Self::Prefix { ope, right } => {
                 format!("{}{}",ope.string(),right.string())
+            },
+            Self::Infix { left, ope, right } => {
+                format!("({} {} {})",left.string(),ope.string(),right.string())
             }
         }
     }
@@ -62,7 +69,46 @@ impl Program {
         Program { stmts: Vec::new() }
     }
 }
+#[derive(PartialEq,Debug)]
+pub enum InfixOpe {
+    Plus,
+    Minus,
+    Asterisk,
+    Slash,
+    Eq,
+    NotEq,
+    LT,
+    GT,
+}
+impl InfixOpe {
+    pub fn string(&self) -> String {
+        let s = match self {
+            Self::Asterisk => "*",
+            Self::Eq => "==",
+            Self::GT => ">",
+            Self::LT => "<",
+            Self::Minus => "-",
+            Self::NotEq => "!=",
+            Self::Plus => "+",
+            Self::Slash => "/"
+        };
 
+        String::from(s)
+    }
+    pub fn from_tkn(tkn:&Token) -> Option<InfixOpe> {
+        match tkn {
+            Token::ASTERISK => Some(Self::Asterisk),
+            Token::EQ => Some(Self::Eq),
+            Token::GT => Some(Self::GT),
+            Token::LT => Some(Self::LT),
+            Token::MINUS => Some(Self::Minus),
+            Token::NOTEQ => Some(Self::NotEq),
+            Token::PLUS => Some(Self::Plus),
+            Token::SLASH => Some(Self::Slash),
+            _ => None
+        }
+    }
+}
 #[derive(PartialEq,Debug)]
 pub enum PrefixOpe {
     Bang,
