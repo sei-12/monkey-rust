@@ -2,12 +2,16 @@
 #[derive(PartialEq,Debug)]
 pub enum Statement {
     Let { ident: Expression, value: Expression },
+    Return { value: Expression }
 }
 impl Statement {
     pub fn token_literal(&self) -> String {
         match self {
             Self::Let { ident, value } => {
                 format!("let {} = {};",ident.token_literal(),value.token_literal())
+            },
+            Self::Return { value } => {
+                format!("return {};",value.token_literal())
             }
         }
     }

@@ -41,8 +41,15 @@ impl Parser {
     fn parse_stmt(&mut self,cur_token:Token) -> Option<Statement> {
         match cur_token {
             Token::LET => self.parse_let(),
+            Token::RETURN => self.parse_return(),
             _ => None
         }
+    }
+
+    fn parse_return(&mut self) -> Option<Statement> {
+        // TODO
+        while self.tokens.pop_front() != Some(Token::SEMICOLON) {};
+        Some(Statement::Return { value: Expression::Decoy })
     }
 
     fn parse_let(&mut self) -> Option<Statement> {
@@ -101,6 +108,29 @@ mod test_parser {
         assert_eq!(value.token_literal(),exp_literal);
     }
 
-        assert_eq!(value.token_literal(),exp_literal,"input:\"{}\"",input);
+    #[test]
+    fn return_statement(){
+        let input = String::from("\
+        return a;\
+        return b;\
+        return 10;\
+        ");
+
+        let tokens = analyze_lexical(input);
+        let mut parser = Parser::new(tokens);
+        let mut program = parser.parse_program();
+        assert_eq!(parser.faults.len(),0);
+        // Vecなので後ろから順にテストしていく
+        test_return_statement(program.stmts.pop(), "decoy");
+        test_return_statement(program.stmts.pop(), "decoy");
+        test_return_statement(program.stmts.pop(), "decoy");
+        assert!(program.stmts.pop().is_none());
+    }
+
+    fn test_return_statement(stmt:Option<Statement>,val_literal:&str){
+        let Some(Statement::Return { value }) = stmt else {
+            panic!("Statement::Returnではない");
+        };
+        assert_eq!(value.token_literal(),val_literal);
     }
 }
