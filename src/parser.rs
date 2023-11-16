@@ -9,6 +9,8 @@ pub enum ParseFault {
     NoPrefixParseFn(Token),
     ParsePrefix_NextNotExist,
     ParseInfix_NextNotExist,
+    ParseGroup_NextNotExist,
+    ParseGroup_RightParenNotExist,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -39,7 +41,9 @@ impl ParseFault {
             ParseFault::ParseLet_AssignNotExist => String::from("let文に代入式(=)がありません"),
             ParseFault::NoPrefixParseFn(tkn) => format!("no prefix parse function for {:?} found",tkn),
             ParseFault::ParsePrefix_NextNotExist => String::from("前置演算子の次にトークンがありません"),
-            ParseFault::ParseInfix_NextNotExist => String::from("中地演算子の次にトークンがありません")
+            ParseFault::ParseInfix_NextNotExist => String::from("中地演算子の次にトークンがありません"),
+            ParseFault::ParseGroup_NextNotExist => String::from("(の次にトークンがありません"),
+            ParseFault::ParseGroup_RightParenNotExist => String::from("かっこ\"(\"が閉じられていません"),
         }
     }
 }
@@ -110,12 +114,29 @@ impl Parser {
         Expression::Boolean { value }
     }
     
+    fn parse_group_expression(&mut self) -> Option<Expression> {
+        let Some(cur) = self.tokens.pop_front() else {
+            self.faults.push(ParseFault::ParseGroup_NextNotExist);
+            return None;
+        };
+
+        let exp = self.parse_exp(Precedence::Lowest, cur);
+
+        if self.tokens.pop_front() != Some(Token::RPAREN) {
+            self.faults.push(ParseFault::ParseGroup_RightParenNotExist);
+            return None;
+        };
+
+        exp
+    }
+
     fn parse_exp(&mut self,prec:Precedence,cur_token:Token) -> Option<Expression> {
         let left_exp = match cur_token {
             Token::IDENTIFIER(ident) => Some(self.parse_identifier(ident)),
             Token::INTEGER(value) => Some(self.parge_integer(value)),
             Token::TRUE | Token::FALSE => Some(self.parse_bool(cur_token == Token::TRUE)),
             Token::BANG | Token::MINUS => self.parse_prefix_expression(cur_token),
+            Token::LPAREN => self.parse_group_expression(),
             _ => {
                 self.faults.push(ParseFault::NoPrefixParseFn(cur_token));
                 None
@@ -426,6 +447,8 @@ mod test_parser {
         test_program("d > a != b < c", "((d > a) != (b < c))");
         test_program("d > a ; b < c", "(d > a)(b < c)");
         test_program("d > -a != b < c", "((d > (-a)) != (b < c))");
+        test_program("(1 + 1) * (2 + 2)", "((1 + 1) * (2 + 2))");
+        test_program("-(5 + 5)", "(-(5 + 5))");        
     }
 
     #[test]
