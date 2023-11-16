@@ -45,7 +45,7 @@ impl Expression {
                 value.to_string()
             },
             Self::Prefix { ope, right } => {
-                format!("{}{}",ope.string(),right.string())
+                format!("({}{})",ope.string(),right.string())
             },
             Self::Infix { left, ope, right } => {
                 format!("({} {} {})",left.string(),ope.string(),right.string())

@@ -332,7 +332,7 @@ mod test_parser {
             panic!();
         }
         // Vecなので後ろから順にテストしていく
-        test_prefix_expression(program.stmts.pop(), PrefixOpe::Bang, "!x");
+        test_prefix_expression(program.stmts.pop(), PrefixOpe::Bang, "(!x)");
         test_prefix_expression(program.stmts.pop(), PrefixOpe::Bang, "xx");
         test_prefix_expression(program.stmts.pop(), PrefixOpe::Minus, "xx");
         test_prefix_expression(program.stmts.pop(), PrefixOpe::Bang, "1");
@@ -404,6 +404,30 @@ mod test_parser {
         assert_eq!(ope,expect_ope);
         assert_eq!(right.string(),right_str);
         assert_eq!(left.string(),left_str);
+    }
+
+    #[test]
+    fn operator_precedence_pasing(){
+        test_program("-a * b", "((-a) * b)");
+        test_program("!-a", "(!(-a))");
+        test_program("a + b + c", "((a + b) + c)");
+        test_program("a + b * c", "(a + (b * c))");
+        test_program("a * b * c", "((a * b) * c)");
+        test_program("a / b * c", "((a / b) * c)");
+        test_program("a - b / c", "(a - (b / c))");
+        test_program("d * a + b * c", "((d * a) + (b * c))");
+        test_program("d + a + b * c", "((d + a) + (b * c))");
+        test_program("d > a == b < c", "((d > a) == (b < c))");
+        test_program("d > a != b < c", "((d > a) != (b < c))");
+        test_program("d > a ; b < c", "(d > a)(b < c)");
+        test_program("d > -a != b < c", "((d > (-a)) != (b < c))");
+    }
+
+    fn test_program(input:&str,out_str:&str){
+        let tokens = analyze_lexical(String::from(input));
+        let mut parser = Parser::new(tokens);
+        let program = parser.parse_program();
+        assert_eq!(program.string(),out_str);
     }
 
     
