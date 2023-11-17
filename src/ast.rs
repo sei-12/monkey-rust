@@ -41,6 +41,7 @@ pub enum Expression {
     Infix { left: Box<Expression>, ope:InfixOpe, right: Box<Expression> },
     If { condition: Box<Expression>, consequence: Box<Statement>, alternative: Option<Box<Statement>>},
     Function { params: Vec<Expression>, body: Box<Statement> },
+    Call { func: Box<Expression> ,args:Vec<Expression> }
 }
 
 impl Expression {
@@ -73,7 +74,11 @@ impl Expression {
             Self::Function { params, body } => {
                 let params_str : Vec<String> = params.iter().map(|x| x.string()).collect();
                 format!("fn ( {} ) {}",params_str.join(","),body.string())
-            }
+            },
+            Self::Call { func, args } => {
+                let args_strs : Vec<String> = args.iter().map(|x| x.string() ).collect();
+                format!("{}({})",func.string(),args_strs.join(","))
+            },
         }
     }
 }

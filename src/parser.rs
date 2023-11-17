@@ -49,6 +49,17 @@ impl Precedence {
             InfixOpe::Asterisk | InfixOpe::Slash => Self::Product
         }
     }
+
+    fn from_token(token:&Token) -> Option<Self> {
+        match token {
+            Token::EQ | Token::NOTEQ => Some(Self::Equals),
+            Token::LT | Token::GT    => Some(Self::LessGreater),
+            Token::PLUS | Token::MINUS => Some(Self::Sum),
+            Token::ASTERISK | Token::SLASH => Some(Self::Product),
+            Token::LPAREN => Some(Self::Call),
+            _ => None
+        }
+    }
 }
 
 
@@ -136,14 +147,21 @@ impl Parser {
         loop {
             if self.tokens.front() == Some(&Token::SEMICOLON) { break; };
             let Some(front) = self.tokens.front() else { break; };
-            let Some(in_op) = InfixOpe::from_tkn(front) else { break; };
-            let front_prec = Precedence::from_op(&in_op);
+            let Some(front_prec) = Precedence::from_token(front) else { break; };
             if prec >= front_prec { break; }
             // 次のトークンが中置演算子でかついまの演算子より優先度が高い
 
-            self.tokens.pop_front();
-            let new_left = self.parse_infix_expression(in_op, left_exp)?;
-            left_exp = new_left;
+            let front = self.get_next_token()?;
+
+            left_exp = if let Some(in_op) = InfixOpe::from_tkn(&front) {
+                self.parse_infix_expression(in_op, left_exp)?
+            }else{
+                if front == Token::LPAREN {
+                    self.parse_call_expression(left_exp)?
+                }else{
+                    panic!("いまのとこありえない");
+                }
+            }
         };
 
         Ok(left_exp)
@@ -248,6 +266,25 @@ impl Parser {
             ope, 
             right: Box::new(right)
         })
+    }
+
+    fn parse_call_expression(&mut self,func:Expression) -> Result<Expression,ParseFault> {
+        let args = self.parse_call_args()?;
+        Ok(Expression::Call { func: Box::new(func), args })
+    }
+
+    fn parse_call_args(&mut self) -> Result<Vec<Expression>,ParseFault> {
+        let mut args = Vec::new();
+
+        loop {
+            let cur_token = self.get_next_token()?;
+            if cur_token == Token::RPAREN { break; };
+            if cur_token == Token::COMMA { continue; };
+            let exp = self.parse_exp(Precedence::Lowest, cur_token)?;
+            args.push(exp);
+        }
+
+        Ok(args)
     }
 }
 
@@ -601,4 +638,53 @@ mod test_parser {
         }
     }
     
+    #[test]
+    fn call_expression(){
+        let input = String::from("\
+        aaa();
+        aaa(x);
+        aaa(x,y);
+        aaa(x,y,);
+        fn (x,y) { x }(a,b);
+        ");
+
+        let tokens = analyze_lexical(input);
+        let mut parser = Parser::new(tokens);
+        let mut program = parser.parse_program();
+
+        if parser.faults.len() > 0 {
+            for f in &parser.faults {
+                println!("{}",f.msg());
+            }
+            panic!();
+        }
+        // Vecなので後ろから順にテストしていく
+        test_call_expression(program.stmts.pop(),"fn ( x,y ) { x }",vec!["a","b"]);
+        test_call_expression(program.stmts.pop(),"aaa",vec!["x","y"]);
+        test_call_expression(program.stmts.pop(),"aaa",vec!["x","y"]);
+        test_call_expression(program.stmts.pop(),"aaa",vec!["x"]);
+        test_call_expression(program.stmts.pop(),"aaa",vec![]);
+
+
+
+        
+        assert!(program.stmts.pop().is_none());
+    }
+
+    fn test_call_expression(stmt:Option<Statement>,func_str:&str,arg_strs:Vec<&str>){
+        let Some(Statement::Expression { exp }) = stmt else {
+            panic!("Statement::Expressionではない");
+        };
+
+        let Expression::Call { func, args } = exp else {
+            panic!("Expression::Callではない");
+        };
+
+        assert_eq!(func_str,func.string());
+
+        assert_eq!(args.len(),arg_strs.len());
+        for ( got,expect ) in args.iter().zip(arg_strs) {
+            assert_eq!(got.string(),expect);
+        }
+    }
 }
