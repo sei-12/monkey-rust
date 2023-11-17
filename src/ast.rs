@@ -33,7 +33,6 @@ impl Statement {
 
 #[derive(PartialEq,Debug)]
 pub enum Expression {
-    Decoy, // いまだけ
     Ident { value: String },
     Integer { value: usize },
     Boolean { value: bool },
@@ -49,9 +48,6 @@ impl Expression {
         match self {
             Self::Ident { value } => {
                 value.clone()
-            },
-            Self::Decoy => {
-                String::from("decoy")
             },
             Self::Integer { value } => {
                 value.to_string()

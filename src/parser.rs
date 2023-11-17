@@ -96,9 +96,12 @@ impl Parser {
     }
 
     fn parse_return(&mut self) -> Result<Statement,ParseFault> {
-        // TODO
-        while self.tokens.pop_front() != Some(Token::SEMICOLON) {};
-        Ok(Statement::Return { value: Expression::Decoy })
+        let next = self.get_next_token()?;
+        let value = self.parse_exp(Precedence::Lowest, next)?;
+        if self.tokens.front() == Some(&Token::SEMICOLON) { 
+            self.tokens.pop_front(); 
+        }
+        Ok(Statement::Return { value })
     }
 
     fn parse_let(&mut self) -> Result<Statement,ParseFault> {
@@ -108,11 +111,15 @@ impl Parser {
         };
 
         self.expect_pop_front(Token::ASSIGN)?;
-        // TODO
-        while self.tokens.pop_front() != Some(Token::SEMICOLON) {};
-        
+
+        let next = self.get_next_token()?;
+        let value = self.parse_exp(Precedence::Lowest, next)?;
+
+        if self.tokens.front() == Some(&Token::SEMICOLON) { 
+            self.tokens.pop_front(); 
+        }
+
         let ident = Expression::Ident{value:ident_str};
-        let value = Expression::Decoy;
         Ok(Statement::Let { ident, value })
     }
 
@@ -308,9 +315,9 @@ mod test_parser {
         let mut parser = Parser::new(tokens);
         let mut program = parser.parse_program();
         assert_eq!(parser.faults.len(),0);
-        test_let_statement(program.stmts.pop(), "aaa", "decoy");
-        test_let_statement(program.stmts.pop(), "b", "decoy");
-        test_let_statement(program.stmts.pop(), "a", "decoy");
+        test_let_statement(program.stmts.pop(), "aaa", "11");
+        test_let_statement(program.stmts.pop(), "b", "c");
+        test_let_statement(program.stmts.pop(), "a", "10");
         assert!(program.stmts.pop().is_none());
     }
 
@@ -339,9 +346,9 @@ mod test_parser {
         let mut program = parser.parse_program();
         assert_eq!(parser.faults.len(),0);
         // Vecなので後ろから順にテストしていく
-        test_return_statement(program.stmts.pop(), "decoy");
-        test_return_statement(program.stmts.pop(), "decoy");
-        test_return_statement(program.stmts.pop(), "decoy");
+        test_return_statement(program.stmts.pop(), "10");
+        test_return_statement(program.stmts.pop(), "b");
+        test_return_statement(program.stmts.pop(), "a");
         assert!(program.stmts.pop().is_none());
     }
 
@@ -613,10 +620,10 @@ mod test_parser {
             panic!();
         }
         // Vecなので後ろから順にテストしていく
-        test_fn_expression(program.stmts.pop(), vec!["x","y","z"], "{ let a = decoy;return decoy; }");
+        test_fn_expression(program.stmts.pop(), vec!["x","y","z"], "{ let a = (x + (y * z));return (a + b); }");
         test_fn_expression(program.stmts.pop(), vec!["x","y","z"], "{ (x + (y * z)) }");
         test_fn_expression(program.stmts.pop(), vec!["x","y","z"], "{ 10 }");
-        test_fn_expression(program.stmts.pop(), vec!["x"], "{ return decoy; }");
+        test_fn_expression(program.stmts.pop(), vec!["x"], "{ return y; }");
         test_fn_expression(program.stmts.pop(), vec!["x","y"], "{ y }");
         
         assert!(program.stmts.pop().is_none());
