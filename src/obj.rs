@@ -13,4 +13,8 @@ impl Object {
             Self::Null => format!("null"),
         }
     }
+
+    pub fn is_int(&self) -> bool {
+        matches!(self,Object::Integer { value:_ })
+    }
 }

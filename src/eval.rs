@@ -1,7 +1,8 @@
-use crate::{ast::{Program, Statement, Expression, PrefixOpe}, obj::Object};
+use crate::{ast::{Program, Statement, Expression, PrefixOpe, InfixOpe}, obj::Object};
 
 pub enum RuntimeError {
-    UnknownPrefixOperator { op: PrefixOpe, obj: Object }
+    UnknownPrefixOperator { ope: PrefixOpe, obj: Object },
+    UnknownInfixOperator { ope: InfixOpe, left: Object, right: Object}
 }
 
 impl RuntimeError {
@@ -32,6 +33,7 @@ fn eval_expression(exp:Expression) -> Result<Object,RuntimeError> {
         Expression::Integer { value } => Ok(Object::Integer { value: value as isize }),
         Expression::Boolean { value } => Ok(Object::Boolean { value }),
         Expression::Prefix { ope, right } => eval_prefix_exp(ope, right),
+        Expression::Infix { left, ope, right } => eval_infix_exp(left, ope, right),
         _ => panic!("未実装")
     }
 }
@@ -46,7 +48,7 @@ fn eval_prefix_exp(ope:PrefixOpe,right:Box<Expression>) -> Result<Object,Runtime
 
 fn eval_prefix_minus(right:Object) -> Result<Object,RuntimeError> {
     let Object::Integer { value } = right else {
-        return Err(RuntimeError::UnknownPrefixOperator { op: PrefixOpe::Minus, obj: right });
+        return Err(RuntimeError::UnknownPrefixOperator { ope: PrefixOpe::Minus, obj: right });
     };
 
     Ok(Object::Integer { value: -value })
@@ -54,12 +56,41 @@ fn eval_prefix_minus(right:Object) -> Result<Object,RuntimeError> {
 
 fn eval_prefix_bang(right:Object) -> Result<Object,RuntimeError> {
     let Object::Boolean { value } = right else {
-        return Err(RuntimeError::UnknownPrefixOperator { op: PrefixOpe::Bang, obj: right });
+        return Err(RuntimeError::UnknownPrefixOperator { ope: PrefixOpe::Bang, obj: right });
     };
 
     Ok(Object::Boolean { value: !value })
 }
 
+fn eval_infix_exp(left:Box<Expression>, ope: InfixOpe, right: Box<Expression> ) -> Result<Object,RuntimeError> {
+    let left = eval_expression(*left)?;
+    let right = eval_expression(*right)?;
+
+    if left.is_int() && right.is_int() {
+        eval_integer_infix_exp(left, ope, right)
+    }else{
+        Err(RuntimeError::UnknownInfixOperator { ope, left, right })
+    }
+}
+
+fn eval_integer_infix_exp(left:Object,ope: InfixOpe,right:Object) -> Result<Object,RuntimeError> {
+    let Object::Integer { value:left } = left  else {panic!("バグ")};
+    let Object::Integer { value:right } = right else {panic!("バグ")};
+
+    let ret_val = match ope {
+        InfixOpe::Plus => left + right,
+        InfixOpe::Minus => left - right,
+        InfixOpe::Slash => left / right,
+        InfixOpe::Asterisk => left * right,
+        _ => { return Err(
+            RuntimeError::UnknownInfixOperator { 
+                ope, left: Object::Integer { value: left }, right: Object::Integer { value: right }
+            }
+        );}
+    };
+
+    Ok(Object::Integer { value: ret_val })
+}
 
 #[cfg(test)]
 mod eval_tests {
@@ -81,6 +112,18 @@ mod eval_tests {
         test_program("!false", "true");
         test_program("-1", "-1");
         test_program("-100", "-100");
+
+        test_program("1 + 1", "2");
+        test_program("1 * 1", "1");
+        test_program("1 + 1 + 2", "4");
+        test_program("2 + 2", "4");
+        test_program("2 + 2 * 3", "8");
+        test_program("(2 + 2) * 3", "12");
+        test_program("-2 + 2", "0");
+        test_program("-2 + 2 * -1", "-4");
+        test_program("-2 + 2 / 2", "-1");
+        test_program("100 / 3 * 3", "99");
+        test_program("40 / 2 * ( 2 + 2)", "80");
 
     }
 
