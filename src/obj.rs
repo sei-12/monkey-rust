@@ -1,4 +1,5 @@
 
+#[derive(Clone,Debug)]
 pub enum Object {
     Integer { value: isize },
     Boolean { value: bool },

@@ -1,7 +1,8 @@
-use std::io::{self, Write};
-use crate::{lexer::analyze_lexical, parser::Parser, eval::eval_program};
+use std::{io::{self, Write}, rc::Rc, cell::RefCell};
+use crate::{lexer::analyze_lexical, parser::Parser, eval::eval_program, env::Environment};
 
 pub fn start(){
+    let env = Rc::new(RefCell::new(Environment::new()));
 
     loop {
         let mut input = String::new();
@@ -23,7 +24,7 @@ pub fn start(){
         if parser.faults.len() > 0 {
             print_parse_fault(&parser);
         }
-        match eval_program(program) {
+        match eval_program(program,env.clone()) {
             Ok(obj) => println!("{}",obj.inspect()),
             Err(err) => println!("{}",err.msg())
         }

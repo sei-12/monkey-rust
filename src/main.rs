@@ -5,6 +5,7 @@ mod ast;
 mod parser;
 mod obj;
 mod eval;
+mod env;
 
 fn main() {
     repl::start()
