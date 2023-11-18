@@ -1,7 +1,7 @@
-use crate::{ast::{Program, Statement, Expression}, obj::Object};
+use crate::{ast::{Program, Statement, Expression, PrefixOpe}, obj::Object};
 
 pub enum RuntimeError {
-
+    UnknownPrefixOperator { op: PrefixOpe, obj: Object }
 }
 
 impl RuntimeError {
@@ -31,8 +31,33 @@ fn eval_expression(exp:Expression) -> Result<Object,RuntimeError> {
     match exp {
         Expression::Integer { value } => Ok(Object::Integer { value: value as isize }),
         Expression::Boolean { value } => Ok(Object::Boolean { value }),
+        Expression::Prefix { ope, right } => eval_prefix_exp(ope, right),
         _ => panic!("未実装")
     }
+}
+
+fn eval_prefix_exp(ope:PrefixOpe,right:Box<Expression>) -> Result<Object,RuntimeError> {
+    let right_obj = eval_expression(*right)?;
+    match ope {
+        PrefixOpe::Bang => eval_prefix_bang(right_obj),
+        PrefixOpe::Minus => eval_prefix_minus(right_obj)
+    }
+}
+
+fn eval_prefix_minus(right:Object) -> Result<Object,RuntimeError> {
+    let Object::Integer { value } = right else {
+        return Err(RuntimeError::UnknownPrefixOperator { op: PrefixOpe::Minus, obj: right });
+    };
+
+    Ok(Object::Integer { value: -value })
+}
+
+fn eval_prefix_bang(right:Object) -> Result<Object,RuntimeError> {
+    let Object::Boolean { value } = right else {
+        return Err(RuntimeError::UnknownPrefixOperator { op: PrefixOpe::Bang, obj: right });
+    };
+
+    Ok(Object::Boolean { value: !value })
 }
 
 
@@ -52,6 +77,10 @@ mod eval_tests {
         test_program("true", "true");
         test_program("false;", "false");
         test_program("false", "false");
+        test_program("!true", "false");
+        test_program("!false", "true");
+        test_program("-1", "-1");
+        test_program("-100", "-100");
 
     }
 
@@ -70,7 +99,7 @@ mod eval_tests {
 
         match eval_program(program) {
             Ok(obj) => assert_eq!(obj.inspect(),expect),
-            Err(err) => println!("{}",err.msg())
+            Err(err) => panic!("{}",err.msg())
         }
 
     }
