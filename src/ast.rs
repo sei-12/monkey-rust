@@ -9,6 +9,7 @@ pub enum Statement {
     Block{ stmts: Vec<Statement> },
 }
 impl Statement {
+    #[cfg(test)]
     pub fn string(&self) -> String {
         match self {
             Self::Let { ident, value } => {
@@ -44,6 +45,7 @@ pub enum Expression {
 }
 
 impl Expression {
+    #[cfg(test)]
     pub fn string(&self) -> String {
         match self {
             Self::Ident { value } => {
@@ -83,6 +85,7 @@ pub struct Program {
     pub stmts : Vec<Statement>
 }
 impl Program {
+    #[cfg(test)]
     pub fn string(&self) -> String {
         let mut ret = String::new();
         for stmt in &self.stmts {
@@ -106,6 +109,7 @@ pub enum InfixOpe {
     GT,
 }
 impl InfixOpe {
+    #[cfg(test)]
     pub fn string(&self) -> String {
         let s = match self {
             Self::Asterisk => "*",
@@ -140,6 +144,7 @@ pub enum PrefixOpe {
     Minus
 }
 impl PrefixOpe {
+    #[cfg(test)]
     pub fn string(&self) -> String {
         match self {
             PrefixOpe::Bang => String::from("!"),
