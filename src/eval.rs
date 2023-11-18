@@ -2,7 +2,9 @@ use crate::{ast::{Program, Statement, Expression, PrefixOpe, InfixOpe}, obj::Obj
 
 pub enum RuntimeError {
     UnknownPrefixOperator { ope: PrefixOpe, obj: Object },
-    UnknownInfixOperator { ope: InfixOpe, left: Object, right: Object}
+    UnknownInfixOperator { ope: InfixOpe, left: Object, right: Object},
+    TodoRename1, // ifの()の中が真偽値ではない
+    TodoRename2, // BlockStatementではない
 }
 
 impl RuntimeError {
@@ -34,8 +36,40 @@ fn eval_expression(exp:Expression) -> Result<Object,RuntimeError> {
         Expression::Boolean { value } => Ok(Object::Boolean { value }),
         Expression::Prefix { ope, right } => eval_prefix_exp(ope, right),
         Expression::Infix { left, ope, right } => eval_infix_exp(left, ope, right),
+        Expression::If { condition, consequence, alternative } => {
+            eval_if_exp(condition, consequence, alternative)
+        },
         _ => panic!("未実装")
     }
+}
+
+fn eval_if_exp(condition: Box<Expression>, consequence: Box<Statement>, alternative: Option<Box<Statement>>) -> Result<Object,RuntimeError>{
+    let Object::Boolean { value:cond } = eval_expression(*condition)? else {
+        return Err(RuntimeError::TodoRename1);
+    };
+
+    if cond {
+        match *consequence {
+            Statement::Block { stmts } => eval_block_stmts(stmts),
+            _ => Err(RuntimeError::TodoRename2)
+        }
+    }else{
+        let Some(alt) = alternative else { return Ok(Object::Null); };
+        match *alt {
+            Statement::Block { stmts } => eval_block_stmts(stmts),
+            _ => Err(RuntimeError::TodoRename2)
+        }
+    }
+}
+
+fn eval_block_stmts(stmts:Vec<Statement>) -> Result<Object,RuntimeError>{
+    let mut result = Ok(Object::Null);
+
+    for stmt in stmts {
+        result = eval_statement(stmt);
+    }
+
+    result
 }
 
 fn eval_prefix_exp(ope:PrefixOpe,right:Box<Expression>) -> Result<Object,RuntimeError> {
@@ -112,6 +146,7 @@ fn eval_boolean_infix_exp(left:Object,ope:InfixOpe,right:Object) -> Result<Objec
     Ok(Object::Boolean { value: ret_val })
 }
 
+
 #[cfg(test)]
 mod eval_tests {
     use crate::{lexer::analyze_lexical, parser::Parser};
@@ -148,6 +183,13 @@ mod eval_tests {
         test_program("1 > 2 * 2", "false");
         test_program("true != false", "true");
         test_program("(1 == 2) != (1 != 2)", "true");
+        test_program("if ( true ) { 10 }", "10");
+        test_program("if ( false ) { 10 }", "null");
+        test_program("if ( false ) { 20 } else { 10 }", "10");
+        test_program("if ( 1 == 1 ) { 10 }", "10");
+        test_program("if ( 1 != 1 ) { 10 }", "null");
+        test_program("if ( 1 == 1 ) { 10;true }", "true");
+
 
     }
 
