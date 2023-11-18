@@ -1,5 +1,5 @@
 use std::io::{self, Write};
-use crate::{lexer::analyze_lexical, parser::Parser};
+use crate::{lexer::analyze_lexical, parser::Parser, eval::eval_program};
 
 pub fn start(){
 
@@ -23,7 +23,11 @@ pub fn start(){
         if parser.faults.len() > 0 {
             print_parse_fault(&parser);
         }
-        println!("{}",program.string());
+        match eval_program(program) {
+            Ok(obj) => println!("{}",obj.inspect()),
+            Err(err) => println!("{}",err.msg())
+        }
+        
     }
 }
 
