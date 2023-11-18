@@ -68,7 +68,11 @@ fn eval_infix_exp(left:Box<Expression>, ope: InfixOpe, right: Box<Expression> ) 
 
     if left.is_int() && right.is_int() {
         eval_integer_infix_exp(left, ope, right)
-    }else{
+    }
+    else if left.is_bool() && right.is_bool() {
+        eval_boolean_infix_exp(left, ope, right)
+    }
+    else{
         Err(RuntimeError::UnknownInfixOperator { ope, left, right })
     }
 }
@@ -77,19 +81,35 @@ fn eval_integer_infix_exp(left:Object,ope: InfixOpe,right:Object) -> Result<Obje
     let Object::Integer { value:left } = left  else {panic!("バグ")};
     let Object::Integer { value:right } = right else {panic!("バグ")};
 
+    let ret_obj = match ope {
+        InfixOpe::Plus     => Object::Integer { value: left +  right },
+        InfixOpe::Minus    => Object::Integer { value: left -  right },
+        InfixOpe::Slash    => Object::Integer { value: left /  right },
+        InfixOpe::Asterisk => Object::Integer { value: left *  right },
+        InfixOpe::Eq       => Object::Boolean { value: left == right },
+        InfixOpe::NotEq    => Object::Boolean { value: left != right },
+        InfixOpe::GT       => Object::Boolean { value: left >  right },
+        InfixOpe::LT       => Object::Boolean { value: left <  right }
+    };
+
+    Ok(ret_obj)
+}
+
+fn eval_boolean_infix_exp(left:Object,ope:InfixOpe,right:Object) -> Result<Object,RuntimeError> {
+    let Object::Boolean { value:left } = left  else {panic!("バグ")};
+    let Object::Boolean { value:right } = right else {panic!("バグ")};
+
     let ret_val = match ope {
-        InfixOpe::Plus => left + right,
-        InfixOpe::Minus => left - right,
-        InfixOpe::Slash => left / right,
-        InfixOpe::Asterisk => left * right,
+        InfixOpe::Eq => left == right,
+        InfixOpe::NotEq => left != right,
         _ => { return Err(
             RuntimeError::UnknownInfixOperator { 
-                ope, left: Object::Integer { value: left }, right: Object::Integer { value: right }
+                ope, left: Object::Boolean { value: left }, right: Object::Boolean { value: right }
             }
         );}
     };
 
-    Ok(Object::Integer { value: ret_val })
+    Ok(Object::Boolean { value: ret_val })
 }
 
 #[cfg(test)]
@@ -112,7 +132,6 @@ mod eval_tests {
         test_program("!false", "true");
         test_program("-1", "-1");
         test_program("-100", "-100");
-
         test_program("1 + 1", "2");
         test_program("1 * 1", "1");
         test_program("1 + 1 + 2", "4");
@@ -124,6 +143,11 @@ mod eval_tests {
         test_program("-2 + 2 / 2", "-1");
         test_program("100 / 3 * 3", "99");
         test_program("40 / 2 * ( 2 + 2)", "80");
+        test_program("1 < 2", "true");
+        test_program("2 == 1 + 1", "true");
+        test_program("1 > 2 * 2", "false");
+        test_program("true != false", "true");
+        test_program("(1 == 2) != (1 != 2)", "true");
 
     }
 

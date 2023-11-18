@@ -17,4 +17,8 @@ impl Object {
     pub fn is_int(&self) -> bool {
         matches!(self,Object::Integer { value:_ })
     }
+
+    pub fn is_bool(&self) -> bool {
+        matches!(self,Object::Boolean { value:_ })
+    }
 }
