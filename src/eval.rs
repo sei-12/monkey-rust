@@ -14,18 +14,23 @@ impl RuntimeError {
 }
 
 pub fn eval_program(program:Program) -> Result<Object,RuntimeError> {
-    let mut result = Ok(Object::Null);
+    let mut result = Object::Null;
 
     for stmt in program.stmts {
-        result = eval_statement(stmt);
+        result = eval_statement(stmt)?;
+        if result.is_return() {
+            let Object::Return { value } = result else { panic!("ありえない") };
+            return Ok(*value);
+        }
     }
 
-    result
+    Ok(result)
 }
 
 fn eval_statement(stmt:Statement) -> Result<Object,RuntimeError> {
     match stmt {
         Statement::Expression { exp } => eval_expression(exp),
+        Statement::Return { value } => eval_return_stmt(value),
         _ => panic!("未実装")
     }
 }
@@ -41,6 +46,11 @@ fn eval_expression(exp:Expression) -> Result<Object,RuntimeError> {
         },
         _ => panic!("未実装")
     }
+}
+
+fn eval_return_stmt(val:Expression) -> Result<Object,RuntimeError>{
+    let value = eval_expression(val)?;
+    Ok(Object::Return { value:Box::new(value) })
 }
 
 fn eval_if_exp(condition: Box<Expression>, consequence: Box<Statement>, alternative: Option<Box<Statement>>) -> Result<Object,RuntimeError>{
@@ -63,13 +73,14 @@ fn eval_if_exp(condition: Box<Expression>, consequence: Box<Statement>, alternat
 }
 
 fn eval_block_stmts(stmts:Vec<Statement>) -> Result<Object,RuntimeError>{
-    let mut result = Ok(Object::Null);
+    let mut result = Object::Null;
 
     for stmt in stmts {
-        result = eval_statement(stmt);
+        result = eval_statement(stmt)?;
+        if result.is_return() { break; };
     }
 
-    result
+    Ok(result)
 }
 
 fn eval_prefix_exp(ope:PrefixOpe,right:Box<Expression>) -> Result<Object,RuntimeError> {
@@ -189,8 +200,16 @@ mod eval_tests {
         test_program("if ( 1 == 1 ) { 10 }", "10");
         test_program("if ( 1 != 1 ) { 10 }", "null");
         test_program("if ( 1 == 1 ) { 10;true }", "true");
-
-
+        test_program("10;return 11;12;", "11");
+        test_program("\
+        if ( true ){
+            if ( true ){
+                return 10;
+            }
+            return 11;
+        }
+        ", "10");
+        
     }
 
     
