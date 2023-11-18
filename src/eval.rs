@@ -30,6 +30,7 @@ fn eval_statement(stmt:Statement) -> Result<Object,RuntimeError> {
 fn eval_expression(exp:Expression) -> Result<Object,RuntimeError> {
     match exp {
         Expression::Integer { value } => Ok(Object::Integer { value: value as isize }),
+        Expression::Boolean { value } => Ok(Object::Boolean { value }),
         _ => panic!("未実装")
     }
 }
@@ -43,10 +44,15 @@ mod eval_tests {
 
 
     #[test]
-    fn integer(){
+    fn program(){
         test_program("5", "5");
         test_program("100;", "100");
-        test_program("a", "10");
+        test_program("10", "10");
+        test_program("true;", "true");
+        test_program("true", "true");
+        test_program("false;", "false");
+        test_program("false", "false");
+
     }
 
     
