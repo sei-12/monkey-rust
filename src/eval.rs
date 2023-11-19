@@ -1,6 +1,6 @@
 use std::{rc::Rc, cell::RefCell};
 
-use crate::{ast::{Program, Statement, Expression, PrefixOpe, InfixOpe}, obj::Object, env::Environment};
+use crate::{ast::{Program, Statement, Expression, PrefixOpe, InfixOpe}, obj::{Object, ObjectType}, env::Environment};
 
 #[derive(Debug)]
 pub enum RuntimeError {
@@ -9,6 +9,7 @@ pub enum RuntimeError {
     TodoRename1, // ifの()の中が真偽値ではない
     TodoRename2, // BlockStatementではない
     IdentNotFound,
+    NotAFunction,
 }
 
 impl RuntimeError {
@@ -23,7 +24,7 @@ pub fn eval_program(program:Program,env:Env) -> Result<Object,RuntimeError> {
     let mut result = Object::Null;
     for stmt in program.stmts {
         result = eval_statement(stmt,env.clone())?;
-        if result.is_return() {
+        if result.obj_type() == ObjectType::Return {
             let Object::Return { value } = result else { panic!("ありえない") };
             return Ok(*value);
         }
@@ -37,7 +38,7 @@ fn eval_statement(stmt:Statement,env:Env) -> Result<Object,RuntimeError> {
         Statement::Expression { exp } => eval_expression(exp,env),
         Statement::Return { value } => eval_return_stmt(value,env),
         Statement::Let { ident, value } => eval_let_stmt(ident, value, env),
-        _ => panic!("未実装")
+        Statement::Block { stmts } => eval_block_stmts(stmts, env.clone())
     }
 }
 
@@ -68,10 +69,55 @@ fn eval_expression(exp:Expression,env:Env) -> Result<Object,RuntimeError> {
             eval_if_exp(condition, consequence, alternative,env)
         },
         Expression::Ident { value } => eval_identifier(&value,env),
-        _ => panic!("未実装")
+        Expression::Function { params, body } => {
+            Ok(Object::Function { params, body:*body , env: env.clone() })
+        },
+        Expression::Call { func, args } => {
+            eval_call_expression(func, args,env.clone())
+        },
     }
 }
 
+fn eval_call_expression(func:Box<Expression>,args:Vec<Expression>,env:Env) -> Result<Object,RuntimeError> {
+    let func = eval_expression(*func, env.clone())?;
+    let args = eval_expressions(args, env.clone())?;
+    apply_funciton(func, args)
+}
+
+fn apply_funciton(func:Object,args:Vec<Object>) -> Result<Object,RuntimeError> {
+    let Object::Function { params, body, env } = func else {
+        return Err(RuntimeError::NotAFunction);
+    };
+
+    let extended_env = Rc::new(RefCell::new(extend_func_env(env, args, params)));
+    let evaluated = eval_statement(body, extended_env)?;
+    Ok(unwrap_return_obj(evaluated))
+}
+
+fn unwrap_return_obj(obj:Object) -> Object {
+    match obj {
+        Object::Return { value } => *value,
+        _ => obj
+    }
+}
+
+fn extend_func_env(env:Env,args:Vec<Object>,params:Vec<Expression>) -> Environment {
+    let mut env = Environment::new_enclosed_env(env);
+    for (param,arg) in params.iter().zip(args) {
+        // TODO リファクタリング
+        let Expression::Ident { value } = param else { panic!("ありえないはず")};
+        env.set(value.clone(), arg);
+    };
+    env
+}
+
+fn eval_expressions(exps:Vec<Expression>,env:Env) -> Result<Vec<Object>,RuntimeError>{
+    let mut result = Vec::new();
+    for exp in exps {
+        result.push(eval_expression(exp, env.clone())?);
+    }
+    Ok(result)
+}
 fn eval_return_stmt(val:Expression,env:Env) -> Result<Object,RuntimeError>{
     let value = eval_expression(val,env)?;
     Ok(Object::Return { value:Box::new(value) })
@@ -101,7 +147,7 @@ fn eval_block_stmts(stmts:Vec<Statement>,env:Env) -> Result<Object,RuntimeError>
 
     for stmt in stmts {
         result = eval_statement(stmt,env.clone())?;
-        if result.is_return() { break; };
+        if result.obj_type() == ObjectType::Return { break; };
     }
 
     Ok(result)
@@ -135,10 +181,10 @@ fn eval_infix_exp(left:Box<Expression>, ope: InfixOpe, right: Box<Expression> ,e
     let left = eval_expression(*left,env.clone())?;
     let right = eval_expression(*right,env.clone())?;
 
-    if left.is_int() && right.is_int() {
+    if left.obj_type() == ObjectType::Integer && right.obj_type() == ObjectType::Integer {
         eval_integer_infix_exp(left, ope, right)
     }
-    else if left.is_bool() && right.is_bool() {
+    else if left.obj_type() == ObjectType::Boolean && right.obj_type() == ObjectType::Boolean {
         eval_boolean_infix_exp(left, ope, right)
     }
     else{
@@ -239,6 +285,21 @@ mod eval_tests {
         test_program("let a = 5 * 5", "null");
         test_program("let a = 5 * 5;a", "25");
         test_program("let a = 5 * 5;let b = a + a;b", "50");
+        test_program("fn (x,y) { return x; }", "fn (x,y) { return x; }");
+        test_program("let a = fn (x,y) { return x; };a", "fn (x,y) { return x; }");
+        test_program("\
+        let sum = fn ( x,y ){
+            x + y
+        }
+        sum(5,5)
+        ", "10");
+        test_program("\
+        let sum = fn ( x,y ){
+            x + y
+        }
+        sum(sum(10,10),sum(10,10))
+        ", "40");
+        test_program("fn (x,y){x + y}(20,20)", "40");
 
     }
 

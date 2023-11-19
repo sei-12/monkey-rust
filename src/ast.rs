@@ -1,7 +1,7 @@
 use crate::token::Token;
 
 
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug,Clone)]
 pub enum Statement {
     Let { ident: Expression, value: Expression },
     Return { value: Expression },
@@ -9,7 +9,6 @@ pub enum Statement {
     Block{ stmts: Vec<Statement> },
 }
 impl Statement {
-    #[cfg(test)]
     pub fn string(&self) -> String {
         match self {
             Self::Let { ident, value } => {
@@ -32,7 +31,7 @@ impl Statement {
     }
 }
 
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug,Clone)]
 pub enum Expression {
     Ident { value: String },
     Integer { value: usize },
@@ -45,7 +44,6 @@ pub enum Expression {
 }
 
 impl Expression {
-    #[cfg(test)]
     pub fn string(&self) -> String {
         match self {
             Self::Ident { value } => {
@@ -97,7 +95,7 @@ impl Program {
         Program { stmts: Vec::new() }
     }
 }
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug,Clone)]
 pub enum InfixOpe {
     Plus,
     Minus,
@@ -109,7 +107,6 @@ pub enum InfixOpe {
     GT,
 }
 impl InfixOpe {
-    #[cfg(test)]
     pub fn string(&self) -> String {
         let s = match self {
             Self::Asterisk => "*",
@@ -138,13 +135,12 @@ impl InfixOpe {
         }
     }
 }
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug,Clone)]
 pub enum PrefixOpe {
     Bang,
     Minus
 }
 impl PrefixOpe {
-    #[cfg(test)]
     pub fn string(&self) -> String {
         match self {
             PrefixOpe::Bang => String::from("!"),
